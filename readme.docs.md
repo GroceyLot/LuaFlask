@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This documentation provides guidance on using `.lua` and `.shtml` files in your Flask application, how to handle errors gracefully, and how to utilize the provided API features. The application leverages Lupa for executing Lua scripts, allowing seamless integration of server-side scripting within HTML.
+This documentation provides guidance on using `.lua` and `.shtml` files in your Flask application, how to handle errors gracefully, and how to utilize the provided API features. The application leverages Lupa for executing Lua scripts, allowing seamless integration of server-side scripting within HTML. I have 2 guides for running the server in a production ready way for windows and unix systems. However, when developing just use the default flask development server by running the python file.
 
 ## Lua File Usage
 
