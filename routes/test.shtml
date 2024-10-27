@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lua Powered SHTML Page</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .header {
+            background-color: #f4f4f4;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .content {
+            margin: 20px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        ._error {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Welcome to My Lua-Powered Page</h1>
+    </div>
+
+    <div class="content">
+        <h2>Dynamic Content with Lua</h2>
+        <p>The current timestamp is: <$lua> return os.date("%Y-%m-%d %H:%M:%S") <$>
+        </p>
+
+        <h2>Random Number Generator</h2>
+        <p>Your random number is: <$lua> return math.random(1, 100) <$>
+        </p>
+
+        <h2>Submit Your Data</h2>
+        <form method="POST" action="/submit">
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" required>
+            <br><br>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required>
+            <br><br>
+            <button type="submit">Submit</button>
+        </form>
+
+        <h2>Link to Another Page</h2>
+        <a href="/anotherPage.html">Go to Another Page</a>
+
+        <h2>Image Display</h2>
+        <img src="/example.jpg" alt="Example Image" width="300">
+
+        <h2>Lua Error Handling</h2>
+        <p>Check the error handling in Lua:</p>
+        <p>
+            <$lua>
+                local function causeError()
+                error("This is a test error.")
+                end
+
+                -- Uncomment the line below to trigger an error
+                causeError()
+                <$>
+        </p>
+
+        <h2>List of Files</h2>
+        <ul>
+            <$lua>
+                local files = api.os.listDir(".")
+                local html = api.html.builder()
+                for _, file in ipairs(files) do
+                    html
+                    :open("li")
+                    :plain(file)
+                    :close()
+                end
+                return html:finish()
+                <$>
+        </ul>
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2024 My Lua-Powered Site</p>
+    </div>
+</body>
+
+</html>

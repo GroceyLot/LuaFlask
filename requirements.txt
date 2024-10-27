@@ -1,0 +1,5 @@
+Flask
+lupa
+psutil
+dnspython
+waitress
