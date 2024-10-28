@@ -1,4 +1,4 @@
-from flask import Flask, request, Response
+from flask import Flask, request, Response, redirect, g
 from lupa import LuaRuntime
 from concurrent.futures import ThreadPoolExecutor
 import threading
@@ -12,20 +12,74 @@ import re
 import base64
 import uuid
 import urllib.parse
+import sqlite3
 from datetime import datetime
 import random
 import socket
 import psutil
-import dns.resolver 
+import dns.resolver
 import urllib.parse
 
 app = Flask(__name__)
 app.config["ROUTES_FOLDER"] = "routes"
+app.config["MODULES_FOLDER"] = "modules"
 app.config["ERRORS_FOLDER"] = os.path.join(app.config["ROUTES_FOLDER"], "errors")
 lua = LuaRuntime(unpack_returned_tuples=True)
 executor = ThreadPoolExecutor()
 
 showLuaErrors = False
+
+
+DATABASE = "shared_lists.db"
+
+# Initialize the database connection as a global variable
+db = sqlite3.connect(DATABASE, check_same_thread=False)
+
+
+# Database Initialization to run on app start
+def initDb():
+    cursor = db.cursor()
+    cursor.execute(
+        """CREATE TABLE IF NOT EXISTS SharedList (
+                        id TEXT PRIMARY KEY,
+                        data TEXT NOT NULL
+                    )"""
+    )
+    db.commit()
+    print("Database initialized.")
+
+try:
+    os.remove(DATABASE)
+except Exception:
+    pass
+
+# Ensure initDb runs when the script starts
+initDb()
+
+
+# Shared List Operations
+def getList(listId):
+    cursor = db.cursor()
+    cursor.execute("SELECT data FROM SharedList WHERE id = ?", (listId,))
+    row = cursor.fetchone()
+    if row:
+        return json.loads(row[0])  # Deserialize JSON data
+    else:
+        # Insert a new empty list if not found
+        cursor.execute(
+            "INSERT INTO SharedList (id, data) VALUES (?, ?)", (listId, json.dumps([]))
+        )
+        db.commit()
+        return []
+
+
+def updateList(listId, data):
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE SharedList SET data = ? WHERE id = ?", (json.dumps(data), listId)
+    )
+    db.commit()
+
 
 class HtmlBuilder:
     def __init__(self):
@@ -203,20 +257,6 @@ class HtmlBuilder:
         self.html_content.append(f"<style>{css}</style>")
         return self
 
-class JsonApi:
-    @staticmethod
-    def encode(data):
-        return json.dumps(dict(data))
-    
-    @staticmethod
-    def encodeArray(data):
-        return json.dumps(list(data))
-
-    @staticmethod
-    def decode(data):
-        return lua.table_from(json.loads(data))
-
-
 class OsApi:
     @staticmethod
     def listDir(path):
@@ -281,7 +321,7 @@ class OsApi:
 
 class HttpApi:
     @staticmethod
-    def get(host, path, headers=None):
+    def get(host, path, headers):
         conn = http.client.HTTPConnection(host)
         if headers is None:
             headers = {}
@@ -289,10 +329,10 @@ class HttpApi:
         response = conn.getresponse()
         data = response.read()
         conn.close()
-        return {"status": response.status, "data": data.decode("utf-8")}
+        return lua.table_from({"status": response.status, "data": data.decode("utf-8")})
 
     @staticmethod
-    def post(host, path, body, headers=None):
+    def post(host, path, body, headers):
         conn = http.client.HTTPConnection(host)
         if headers is None:
             headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -300,14 +340,13 @@ class HttpApi:
         response = conn.getresponse()
         data = response.read()
         conn.close()
-        return {"status": response.status, "data": data.decode("utf-8")}
+        return lua.table_from({"status": response.status, "data": data.decode("utf-8")})
 
 
 class HtmlApi:
     @staticmethod
     def serveHtml(html):
         return {"response": html, "type": "text/html", "code": 200}
-
 
     @staticmethod
     def serveError(code):
@@ -328,7 +367,11 @@ class HtmlApi:
                     return {"response": error, "type": "text/html", "code": 500}
             except FileNotFoundError:
                 # Final fallback to plain text response
-                return {"response": "Hi, the person who made this website is a terrible person, and didn't even bother to make an error page.\nThis is the default error message on the server software made by a good person.\nLike they literally asked the software to return an error, but they didn't even make the page for that error, or the default error page.\nThe code was: 500", "type": "text/plain", "code": 500}
+                return {
+                    "response": "Hi, the person who made this website is a terrible person, and didn't even bother to make an error page.\nThis is the default error message on the server software made by a good person.\nLike they literally asked the software to return an error, but they didn't even make the page for that error, or the default error page.\nThe code was: 500",
+                    "type": "text/plain",
+                    "code": 500,
+                }
 
     @staticmethod
     def builder():
@@ -336,9 +379,14 @@ class HtmlApi:
 
 
 class UtilityApi:
-    @staticmethod # Sleep for a specified amount of time in seconds
+    @staticmethod  # Sleep for a specified amount of time in seconds
     def sleep(seconds):
         time.sleep(seconds)
+
+    @staticmethod
+    def serveRedirect(link):
+        """Return a dictionary for a redirect response."""
+        return lua.table_from({"_redirect": link})
 
     @staticmethod
     def hashData(data, algorithm="sha256"):
@@ -416,44 +464,100 @@ class UtilityApi:
         memoryInfo = psutil.virtual_memory()
         return memoryInfo.used // 1024  # Return in kilobytes
 
-class CustomThreadWrapper:
-    def __init__(self, function):
-        self.luaFunction = function
-        self.thread = threading.Thread(target=self.function)
-        self.thread.start()
-
-    def alive(self):
-        return self.thread.is_alive()
-
-    def join(self):
-        self.thread.join()
-
-class ThreadApi:
+class SharedListApi:
     @staticmethod
-    def spawn(luaFunction):
-        """Execute a given Lua function on a new thread."""
-        def runFunction():
-            try:
-                luaFunction()
-            except Exception as e:
-                print(f"Error in executing Lua function on new thread: {e}")
+    def appendToList(listId, item):
+        dataList = getList(listId)
+        dataList.append(str(item))  # Append to the list (starting at index 1 in Lua)
+        updateList(listId, dataList)
+        return f"Item added to list {listId}"
 
-        return CustomThreadWrapper(runFunction)
+    @staticmethod
+    def removeFromList(listId, item):
+        dataList = getList(listId)
+        try:
+            dataList.remove(int(item))
+            updateList(listId, dataList)
+            return f"Item removed from list {listId}"
+        except ValueError:
+            return f"Item not found in list {listId}"
+
+    @staticmethod
+    def getListData(listId):
+        return lua.table_from(getList(listId))
+
+    @staticmethod
+    def getItem(listId, index):
+        dataList = getList(listId)
+        # Adjust index to be 1-based (Lua convention)
+        if 0 < index <= len(dataList):
+            return dataList[index - 1]
+        return None
+
+    @staticmethod
+    def deleteList(listId):
+        cursor = db.cursor()
+        cursor.execute("DELETE FROM SharedList WHERE id = ?", (listId,))
+        db.commit()
+        return f"List {listId} deleted"
+
+    @staticmethod
+    def listExists(listId):
+        cursor = db.cursor()
+        cursor.execute("SELECT COUNT(1) FROM SharedList WHERE id = ?", (listId,))
+        exists = cursor.fetchone()[0] > 0
+        return exists
 
 
-# Extend the main Api class to include the SqlApi with parallel support
+luaGlobals = lua.globals()
+with open("json.lua", "r") as file:
+    luaGlobals.json = lua.execute(file.read())
+
 class Api:
     http = HttpApi
-    json = JsonApi
+    json = luaGlobals.json
     os = OsApi
     html = HtmlApi
     util = UtilityApi
     thread = ThreadApi
+    list = SharedListApi
 
-# Register 'api' for Lua
-luaGlobals = lua.globals()
 luaGlobals.api = Api
 
+
+# Load Modules Dynamically
+def loadModules():
+    modules = {}
+    moduleFolder = app.config["MODULES_FOLDER"]
+    if os.path.isdir(moduleFolder):
+        for moduleFile in os.listdir(moduleFolder):
+            if moduleFile.endswith(".lua"):
+                moduleName = os.path.splitext(moduleFile)[0]
+                with open(os.path.join(moduleFolder, moduleFile), "r") as file:
+                    luaScript = file.read()
+                    luaFunction = lua.execute(f"return function() {luaScript} end")
+                    modules[moduleName] = luaFunction
+
+    return modules
+
+
+loadedModules = loadModules()
+
+
+# Automatically call module named "_"
+if "_" in loadedModules:
+    loadedModules["_"]()
+
+
+# Modify require behavior to load from modules if available
+def customRequire(moduleName):
+    if moduleName in loadedModules:
+        return loadedModules[moduleName]()
+    else:
+        return "Module not found."
+
+
+luaGlobals.require = customRequire
 
 def getRequestData():
     """Retrieve request data for Lua scripts."""
@@ -465,10 +569,12 @@ def getRequestData():
         }
     )
 
+
 def getLuaErrorMessage(e):
     if showLuaErrors:
         return f"Error: {str(e)}"
     return "Error"
+
 
 def processCustomLuaTags(htmlContent):
     def executeLuaCode(match):
@@ -490,6 +596,7 @@ def processCustomLuaTags(htmlContent):
     )
     return processedContent
 
+
 def serveErrorPage(errorCode):
     """Serve a custom error page manually, or a plain text response if unavailable."""
     errorPath = os.path.join(app.config["ERRORS_FOLDER"], f"{errorCode}.html")
@@ -499,7 +606,9 @@ def serveErrorPage(errorCode):
                 file.read(), status=int(errorCode), content_type="text/html"
             )
     return Response(
-        f"Hi, the person who made this website forgot to make one specific error page, meaning this message is being shown.\nThis is the default error message on the server software made by a good person.\nThe code was: {errorCode}", status=int(errorCode), content_type="text/plain"
+        f"Hi, the person who made this website forgot to make one specific error page, meaning this message is being shown.\nThis is the default error message on the server software made by a good person.\nThe code was: {errorCode}",
+        status=int(errorCode),
+        content_type="text/plain",
     )
 
 
@@ -508,9 +617,18 @@ def handleLuaError(e):
     luaErrorPath = os.path.join(app.config["ERRORS_FOLDER"], "luaError.html")
     if os.path.isfile(luaErrorPath):
         with open(luaErrorPath, "r") as file:
-            return Response(file.read().replace("<$error$>", getLuaErrorMessage(e)), status=500, content_type="text/html")
+            return Response(
+                file.read().replace("<$error$>", getLuaErrorMessage(e)),
+                status=500,
+                content_type="text/html",
+            )
 
-    return Response("Well, the person who made this website decided to not make an error page.\nThere was an error with their code.\n " + getLuaErrorMessage(e), status=500, content_type="text/plain")
+    return Response(
+        "Well, the person who made this website decided to not make an error page.\nThere was an error with their code.\n "
+        + getLuaErrorMessage(e),
+        status=500,
+        content_type="text/plain",
+    )
 
 
 def handleLuaFile(path, requestData):
@@ -524,13 +642,16 @@ def handleLuaFile(path, requestData):
             luaFunction = lua.execute(luaScript)
             result = dict(luaFunction(requestData))
 
-            if result is not None and "response" in result:
-                return Response(
-                    result["response"],
-                    status=result.get("code", 200),
-                    content_type=result.get("type", "text/plain"),
-                    headers=result.get("headers", {}),
-                )
+            if result is not None:
+                if "response" in result:
+                    return Response(
+                        result["response"],
+                        status=result.get("code", 200),
+                        content_type=result.get("type", "text/plain"),
+                        headers=result.get("headers", {}),
+                    )
+                elif "_redirect" in result:
+                    return redirect(result["_redirect"])
             else:
                 print("Error: Invalid response from Lua function.")
                 return serveErrorPage("500")
