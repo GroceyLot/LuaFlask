@@ -54,6 +54,13 @@ return function(requestData)
     :plain(api.util.validateEmail("test@example.com") and "Valid!" or "Invalid!") -- Show validation result
     :close() -- Close the <p> tag
 
+    htmlBuilder:open("h2") -- Open <h2> for file upload section
+    :plain("Modules") -- Add section title
+    :close() -- Close the <h2> tag
+    :open("p") -- Open a new <p> tag for module display
+    :plain(require("example")) -- Display module content
+    :close() -- Close the <p> tag
+
     -- Interactive Form with Lua-Processed Input
     htmlBuilder -- Display CPU and Memory Usage
     :open("h2") -- Open <h2> for system information section

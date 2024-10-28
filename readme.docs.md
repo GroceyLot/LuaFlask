@@ -12,12 +12,13 @@ Lua files are located in the `routes` directory of your application. Each Lua fi
 
 - **Location**: `routes/{subpath}/_.lua` or `routes/{subpath}.lua`
 - **Example**:
-  ```lua
+- ```lua
   return function(requestData)
       local response = {
           response = "Hello from Lua!",
           type = "text/plain",
-          code = 200
+          code = 200,
+  	_redirect = nil
       }
       return response
   end
@@ -64,7 +65,6 @@ SHTML files allow you to embed Lua code directly within HTML using special tags.
 
 Any Lua code enclosed in `<$lua ... $>` tags will be executed, and its output will replace the tag in the HTML response. Ensure proper error handling within Lua to avoid disrupting the HTML structure. If there is an error, it will be filled with `<div class="_error">Error</div>` (if you are on a development server it will show the error message)
 
-
 ## Error Handling
 
 The application provides a robust error-handling mechanism that serves custom error pages or plain text responses for various HTTP error codes.
@@ -90,7 +90,6 @@ When an error occurs, the application attempts to serve the appropriate error pa
 
 If a requested route or file does not exist, a `404.html` page will be served.
 
-
 ## API Function Access
 
 ### HttpApi
@@ -100,8 +99,7 @@ If a requested route or file does not exist, a `404.html` page will be served.
 
 ### JsonApi
 
-- `api.json.encode(data)`: Encodes a Python dictionary to a JSON string.
-- `api.json.encodeArray(data)`: Encodes a Python list to a JSON string.
+- `api.json.encode(data)`: Encodes a Lua table to a JSON string.
 - `api.json.decode(data)`: Decodes a JSON string into a Lua table.
 
 ### OsApi
@@ -121,6 +119,15 @@ If a requested route or file does not exist, a `404.html` page will be served.
 - `api.os.pathAbsolute(path)`: Returns the absolute path of the specified path.
 - `api.os.pathGetSize(path)`: Returns the size of the specified file.
 - `api.os.pathIsLink(path)`: Checks if the specified path is a symbolic link.
+
+### SharedListApi
+
+* `api.list.appendToList(listId, item)`: Creates the list if it doesn't exist, and append an item to it. Items can only be strings.
+* `api.list.removeFromList(listId, item)`: Removes an item from the list with the id item. Id starts at 1.
+* `api.list.getListData(listId)`: Returns the list as a table.
+* `api.list.getItem(listId, item)`: Returns an item from the table.
+* `api.list.deleteList(listId)`: Deletes a list.
+* `api.list.listExists(listId)`: Returns a boolean telling if a list exists.
 
 ### HtmlApi
 
@@ -144,3 +151,4 @@ If a requested route or file does not exist, a `404.html` page will be served.
 - `api.util.generateSlug(text)`: Converts a string into a URL-friendly slug.
 - `api.util.getCpuUsage()`: Returns the current CPU usage percentage.
 - `api.util.getMemoryUsage()`: Returns the current memory usage in kilobytes.
+- `api.util.serveRedirect(url)`: Returns a respon se
