@@ -519,7 +519,6 @@ class Api:
     os = OsApi
     html = HtmlApi
     util = UtilityApi
-    thread = ThreadApi
     list = SharedListApi
 
 luaGlobals.api = Api
