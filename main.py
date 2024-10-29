@@ -47,6 +47,7 @@ def initDb():
     db.commit()
     print("Database initialized.")
 
+
 try:
     os.remove(DATABASE)
 except Exception:
@@ -256,6 +257,7 @@ class HtmlBuilder:
         self.html_content.append(f"<style>{css}</style>")
         return self
 
+
 class OsApi:
     @staticmethod
     def listDir(path):
@@ -461,6 +463,7 @@ class UtilityApi:
         memoryInfo = psutil.virtual_memory()
         return memoryInfo.used // 1024  # Return in kilobytes
 
+
 class SharedListApi:
     @staticmethod
     def appendToList(listId, item):
@@ -510,6 +513,7 @@ luaGlobals = lua.globals()
 with open("json.lua", "r") as file:
     luaGlobals.json = lua.execute(file.read())
 
+
 class Api:
     http = HttpApi
     json = luaGlobals.json
@@ -517,6 +521,7 @@ class Api:
     html = HtmlApi
     util = UtilityApi
     list = SharedListApi
+
 
 luaGlobals.api = Api
 
@@ -555,13 +560,18 @@ def customRequire(moduleName):
 
 luaGlobals.require = customRequire
 
+
 def getRequestData():
     """Retrieve request data for Lua scripts."""
+    # Get the request body as a string
+    body = request.get_data(as_text=True)
+
     return lua.table_from(
         {
             "urlArguments": lua.table_from(dict(request.args)),
             "headers": lua.table_from(dict(request.headers)),
             "method": request.method,
+            "body": body,
         }
     )
 
@@ -707,6 +717,7 @@ def handleAnyHttpError(e):
     # Retrieve HTTP status code, default to 500 if not available
     statusCode = e.code if hasattr(e, "code") else 500
     return serveErrorPage(str(statusCode))
+
 
 if __name__ == "__main__":
     showLuaErrors = True
