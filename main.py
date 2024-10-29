@@ -1,11 +1,10 @@
 from flask import Flask, request, Response, redirect, g
 from lupa import LuaRuntime
 from concurrent.futures import ThreadPoolExecutor
-import threading
+import requests
 import time
 import mimetypes
 import os
-import http.client
 import json
 import hashlib
 import re
@@ -321,26 +320,24 @@ class OsApi:
 
 class HttpApi:
     @staticmethod
-    def get(host, path, headers):
-        conn = http.client.HTTPConnection(host)
-        if headers is None:
-            headers = {}
-        conn.request("GET", path, headers=headers)
-        response = conn.getresponse()
-        data = response.read()
-        conn.close()
-        return lua.table_from({"status": response.status, "data": data.decode("utf-8")})
+    def get(url, headers=None):
+        try:
+            response = requests.get(url, headers=headers)
+            return lua.table_from(
+                {"status": response.status_code, "data": response.text}
+            )
+        except requests.RequestException as e:
+            return lua.table_from({"status": 500, "data": f"Error: {str(e)}"})
 
     @staticmethod
-    def post(host, path, body, headers):
-        conn = http.client.HTTPConnection(host)
-        if headers is None:
-            headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        conn.request("POST", path, body, headers)
-        response = conn.getresponse()
-        data = response.read()
-        conn.close()
-        return lua.table_from({"status": response.status, "data": data.decode("utf-8")})
+    def post(url, data=None, headers=None):
+        try:
+            response = requests.post(url, data=data, headers=headers)
+            return lua.table_from(
+                {"status": response.status_code, "data": response.text}
+            )
+        except requests.RequestException as e:
+            return lua.table_from({"status": 500, "data": f"Error: {str(e)}"})
 
 
 class HtmlApi:

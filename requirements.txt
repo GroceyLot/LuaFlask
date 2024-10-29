@@ -1,5 +1,6 @@
 Flask
 lupa
+requests
 psutil
 dnspython
 waitress
