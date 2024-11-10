@@ -68,7 +68,7 @@
         <p>
             <$lua>
                 local function causeError()
-                error("This is a test error.")
+                    error("This is a test error.")
                 end
 
                 -- Uncomment the line below to trigger an error
