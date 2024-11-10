@@ -19,8 +19,6 @@ Description=Flask Application
 After=network.target
 
 [Service]
-User=www-data
-Group=www-data
 WorkingDirectory=${APP_DIR}
 ExecStart=${APP_ENTRYPOINT}
 Restart=always
