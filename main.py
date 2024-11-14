@@ -31,8 +31,14 @@ showLuaErrors = False
 
 DATABASE = "shared_lists.db"
 
+
+try:
+    os.remove(DATABASE)
+except Exception:
+    pass
+
 # Initialize the database connection as a global variable
-db = sqlite3.connect(DATABASE, check_same_thread=False)
+db = sqlite3.connect(DATABASE)
 
 
 # Database Initialization to run on app start
@@ -46,12 +52,6 @@ def initDb():
     )
     db.commit()
     print("Database initialized.")
-
-
-try:
-    os.remove(DATABASE)
-except Exception:
-    pass
 
 # Ensure initDb runs when the script starts
 initDb()
@@ -334,7 +334,7 @@ class HttpApi:
     @staticmethod
     def post(url, data=None, headers=None):
         try:
-            response = requests.post(url, data=data, headers=headers)
+            response = requests.post(url, data=str(data), headers=headers)
             return lua.table_from(
                 {"status": response.status_code, "data": response.text}
             )

@@ -94,8 +94,8 @@ If a requested route or file does not exist, a `404.html` page will be served.
 
 ### HttpApi
 
-- `api.http.get(host, path, headers=None)`: Sends a GET request to the specified host and path.
-- `api.http.post(host, path, body, headers=None)`: Sends a POST request to the specified host and path.
+- `api.http.get(url, headers=None)`: Sends a GET request to the specified host and path.
+- `api.http.post(url, body, headers=None)`: Sends a POST request to the specified host and path.
 
 ### JsonApi
 
